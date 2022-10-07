@@ -1,0 +1,53 @@
+// x64dbg script for extracting information from DeimosC2 Agents
+// Works only with 64-bit PE files with NO OBFUSCATION
+// Author: fernando_merces, FTR at Trend Micro
+// Date: 2022-08-04
+ 
+// Samples
+// 1c60f6b5f2bc443895b5d295fcca8e7327e65d03d5d5046f33c04619da3f5791
+// 9abf641af18d2015fab8d2a862a6bffddd5e8a9d9318010db2e81d536888cb43
+// d2bf58d4ad52195a29658f6fab9d85b2f5d8ce4392acf89cb243e0b91511c7c3
+// dbc5b2946b58deb1c40d787e3c5386b9020086b5d01dbbfbaccc44b322aca68c
+ 
+bpc; bphc; bpmc
+  
+// Search for runtime.stringtoslicebyte()
+// The RSA public key will be passed as an argument to this function
+// however, this function is called many times. I set a conditional
+// breakpoint to stop when RCX + 15 is "PUBLIC K"
+ 
+find mem.base(cip), "65488B0C2528000000488B8900000000483B61100F86BF0000004883EC4048896C2438488D6C2438488B4424484885C00F849C000000488B4C24584883F9207F72"
+cmp $result, 0
+je http
+bp $result
+bpcond $result, qword(rcx+.15) == 4B2043494C425550 || qword(rax+.15) == 4B2043494C425550
+run
+zzz .1200
+bpd
+log "RSA public key: {s:rax}"
+log "RSA public key: {s:rcx}"
+ 
+// Now to extract the Listener address, we look for http.Post() in case it's HTTPS
+// or net.Dial() in case it's TCP
+ 
+http:
+// Search for http.Post()
+find mem.base(cip), "65488B0C2528000000488B8900000000488D4424F8483B41100F86FE0100004881EC880000004889AC"
+cmp $result, 0
+je tcp
+bp $result
+jmp c2
+ 
+tcp:
+// Search for net.Dial()
+find mem.base(cip), "65488B0C2528000000488B8900000000488D4424C0483B41100F86D4000000"
+cmp $result, 0
+je exit
+bp $result
+ 
+c2:
+run
+log "C2 Server: {s:rbx}"
+  
+exit:
+ret

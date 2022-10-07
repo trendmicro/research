@@ -1,0 +1,57 @@
+// x64dbg script for extracting information from DeimosC2 Agents
+// Works only with OBFUSCATED 64-bit PE files
+// Author: fernando_merces, FTR at Trend Micro
+// Date: 2022-08-04
+ 
+// Samples
+// 2a4b225f544e1a0497f69c124e3c7f4959fe09b5f85f8fe5982613119e7a4149
+// b6bc7b208a2b7d1f1ce15352a442e8ee8c886416c4f2dbe22c0338a0f8b8d0a7
+// 19402300ab8748b1ad565bed3e9b6713d2cebd6311729be41b2c7b1964929751
+// 986daeb291996c58eaa6b40da906579ed7d0da397493f921e56e3de00af94315
+// 4f069ec1dc6e88a2b4e1c50a8dda6a7935f91424724499b41ff1c3a9f87b143c
+// 7bec7b246c7ba157f16dde3cee2225c1066bac706aa3113031df351a75c22239
+ 
+bpc; bphc; bpmc
+  
+// Search for runtime.stringtoslicebyte()
+// The RSA public key will be passed as an argument to this function
+// however, this function is called many times. I set a conditional
+// breakpoint to stop when RDI is pointing to a string starting with '/' (0x2f)
+ 
+find mem.base(cip), "65488B0C2528000000488B8900000000483B61100F86BF0000004883EC4048896C2438488D6C2438488B4424484885C00F849C000000488B4C24584883F9207F72"
+cmp $result, 0
+je http
+bp $result
+bpname $result, "runtime.stringtoslicebyte"
+bpcond $result, byte(rdi) == 2f
+run
+zzz .1200
+bpd
+log "RSA public key: {s:rax}" // Sometimes the key is in RAX
+log "RSA public key: {s:rcx}"
+ 
+// Now to extract the Listener address, we look for http.Post() in case it's HTTPS
+// or net.Dial() in case it's TCP
+ 
+http:
+// Search for http.Post()
+find mem.base(cip), "65488B0C2528000000488B8900000000488D4424F8483B41100F86FE0100004881EC880000004889AC"
+cmp $result, 0
+je tcp
+bp $result
+jmp c2
+ 
+tcp:
+// Search for net.Dial()
+find mem.base(cip), "65488B0C2528000000488B8900000000488D4424C0483B41100F86D4000000"
+cmp $result, 0
+je exit
+bp $result
+bpname $result, "net.Dial"
+ 
+c2:
+run
+log "C2 Server: {s:rbx}"
+  
+exit:
+ret
