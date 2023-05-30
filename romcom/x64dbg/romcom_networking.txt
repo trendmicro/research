@@ -1,0 +1,26 @@
+// ROMCOM 3.0 network component x64dbg script
+// This script breaks at WinHttpConnect()
+//
+// Author: Fernando Mercês @ Trend Micro FTR Team
+// Date: 2023-03-23
+
+// Set the command-line to execute the Main function as the malware does
+setcmdline "C:\Windows\System32\rundll32.exe C:\Users\user\Desktop\netid3642346241.dll0,Main netid3642346241.dll0"
+
+// Disable SystemBreakpoint
+config Events, SystemBreakpoint, 0
+
+// Enable break on DLL load, so we break when rundll32.exe loads our malicious DLL
+config Events, DllLoad, 1
+run
+zzz .1000
+
+// Now the DLL is loaded, let's break at main. We need a hardware breakpoint to avoid exceptions.
+bph Main
+config Events, DllLoad, 0
+erun
+
+bp WinHttpConnect
+run
+
+
